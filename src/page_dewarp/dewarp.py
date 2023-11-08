@@ -10,6 +10,7 @@ from cv2 import (
     cvtColor,
     remap,
     resize,
+    imwrite,
 )
 from PIL import Image
 
@@ -17,6 +18,7 @@ from .debug_utils import debug_show
 from .normalisation import norm2pix
 from .options import cfg
 from .projection import project_xy
+from .staffline_detection import crop_staff_lines
 
 __all__ = ["round_nearest_multiple", "RemappedImage"]
 
@@ -59,33 +61,22 @@ class RemappedImage:
             image_y_coords, (width, height), interpolation=INTER_CUBIC
         )
         img_gray = cvtColor(img, COLOR_RGB2GRAY)
-        remapped = remap(
-            img_gray,
-            image_x_coords,
-            image_y_coords,
-            INTER_CUBIC,
-            None,
-            BORDER_REPLICATE,
-        )
-        if cfg.output_opts.NO_BINARY:
-            thresh = remapped
-            pil_image = Image.fromarray(thresh)
-        else:
-            thresh = adaptiveThreshold(
-                remapped,
-                255,
-                ADAPTIVE_THRESH_MEAN_C,
-                THRESH_BINARY,
-                cfg.mask_opts.ADAPTIVE_WINSZ,
-                25,
-            )
-            pil_image = Image.fromarray(thresh)
-            pil_image = pil_image.convert("1")
+        remapped = []
+        for i in range(3):
+            remapped.append(remap(
+                img[:, :, i],
+                image_x_coords,
+                image_y_coords,
+                INTER_CUBIC,
+                None,
+                BORDER_REPLICATE,
+            ))
+        remapped = np.transpose(np.array(remapped), (1, 2, 0))
+        thresh = remapped
+        thresh = crop_staff_lines(thresh)
+        pil_image = Image.fromarray(thresh)
         self.threshfile = name + "_thresh.png"
-        pil_image.save(
-            self.threshfile,
-            dpi=(cfg.output_opts.OUTPUT_DPI, cfg.output_opts.OUTPUT_DPI),
-        )
+        imwrite(self.threshfile, thresh)
         if cfg.debug_lvl_opt.DEBUG_LEVEL >= 1:
             height = small.shape[0]
             width = int(round(height * float(thresh.shape[1]) / thresh.shape[0]))

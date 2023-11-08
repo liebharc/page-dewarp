@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import cv2
 from cv2 import (
     CHAIN_APPROX_NONE,
     LINE_AA,
@@ -17,6 +18,7 @@ from cv2 import moments as cv2_moments
 from .debug_utils import cCOLOURS, debug_show
 from .options import cfg
 from .simple_utils import fltp
+from .staffline_detection import detect_staffs
 
 __all__ = [
     "blob_mean_and_tangent",
@@ -37,6 +39,8 @@ def blob_mean_and_tangent(contour):
     """
     moments = cv2_moments(contour)
     area = moments["m00"]
+    if area == 0:
+        area = 1
     mean_x = moments["m10"] / area
     mean_y = moments["m01"] / area
     covariance_matrix = np.divide(
@@ -88,22 +92,14 @@ def make_tight_mask(contour, xmin, ymin, width, height):
     drawContours(tight_mask, [tight_contour], contourIdx=0, color=1, thickness=-1)
     return tight_mask
 
-
 def get_contours(name, small, mask):
-    contours, _ = findContours(mask, RETR_EXTERNAL, CHAIN_APPROX_NONE)
+    contours, _ignored = detect_staffs(small)
+    contours = [c.points for c in contours]
     contours_out = []
     for contour in contours:
         rect = boundingRect(contour)
         xmin, ymin, width, height = rect
-        if (
-            width < cfg.contour_opts.TEXT_MIN_WIDTH
-            or height < cfg.contour_opts.TEXT_MIN_HEIGHT
-            or width < cfg.contour_opts.TEXT_MIN_ASPECT * height
-        ):
-            continue
         tight_mask = make_tight_mask(contour, xmin, ymin, width, height)
-        if tight_mask.sum(axis=0).max() > cfg.contour_opts.TEXT_MAX_THICKNESS:
-            continue
         contours_out.append(ContourInfo(contour, rect, tight_mask))
     if cfg.debug_lvl_opt.DEBUG_LEVEL >= 2:
         visualize_contours(name, small, contours_out)

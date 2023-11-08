@@ -1,8 +1,14 @@
 *.swp
 *.swo
-build
+Abuild
 dist
 *.egg-info
 version.py
 .eggs
 results/
+
+venv
+*.png
+*.jpeg
+__pycache__
+.vscode
