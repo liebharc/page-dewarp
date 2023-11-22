@@ -23,7 +23,7 @@ def image_threshold(img: np.ndarray) -> np.ndarray:
 def get_large_shapes(img):
     blur = cv2.medianBlur(img, 9)
     thresh = cv2.threshold(blur, 25, 255, cv2.THRESH_BINARY)[1]
-    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 3))
     close = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=3)
     return close
 
@@ -63,6 +63,9 @@ class Contour:
         self.bottom = max(countour_points[:, 0, 1])
         self.left = min(countour_points[:, 0, 0])
         self.right = max(countour_points[:, 0, 0])
+        self.width = self.right - self.left
+        self.height = self.bottom - self.top
+        self.color = None
 
     def draw_on(self, img):
         cv2.drawContours(img, [self.drawbox], 0, (0, 255, 0), 2)
@@ -107,17 +110,38 @@ def init_zones(staff_pred: np.ndarray, splits: int) -> Tuple[np.ndarray, int, in
     return zones, left_bound, right_bound, bottom_bound
 
 
-def find_contours(binary):
-    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    contours = [Contour(c) for c in contours]
+def find_contours(binary, original):
+    cv2contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    contours = [Contour(c) for c in cv2contours]
     mostly_horizontal = [c for c in contours if abs(c.angle) < np.pi / 16]
     result = []
+
+    #final = np.zeros(original.shape,np.uint8)
+    mask = np.zeros(binary.shape,np.uint8)
+
     for contour in mostly_horizontal:
-        if contour.area < 4000:
+        if contour.area < 5000:
             continue
         result.append(contour)
+        mask[...]=0
+        cv2.drawContours(mask,[contour.points],-1,255,-1)
+        contour.color = cv2.mean(original,mask)
+        #cv2.drawContours(final,[contour.points],-1,cv2.mean(original,mask),-1)
+
+    colors = [c.color for c in result]
+    average_color, stdtdev_color = calculate_mean_and_stddev_for_colors(colors)
+    result = filter_countours_by_color(result, average_color, stdtdev_color)
+    # Perhaps better: Take relative y to closest neighbor, x start, area (normalized to median area) and color (median)
+
     return result
 
+def filter_countours_by_color(contours, average_color, stddev_color):
+    min_stddev = (30, 30, 30, 0)
+    limit = np.maximum(min_stddev, stddev_color)
+    return [c for c in contours if c.color is not None and np.all(np.abs(c.color - average_color) <= 1.2 * limit)]
+
+def calculate_mean_and_stddev_for_colors(colors):
+    return np.mean(colors, axis=0), np.std(colors, axis=0)
 
 def extend_zone(zone1: range, zone2: range):
     if zone1 is None:
@@ -165,8 +189,8 @@ def detect_staffs(img, debug=True):
         cv2.imwrite("sheetmusic_binary.jpeg", binary)
     shapes = get_large_shapes(binary)
     if debug:
-        cv2.imwrite("sheetmusic_roi.jpeg", shapes)
-    contours = find_contours(shapes)
+        cv2.imwrite("sheetmusic_shapes.jpeg", shapes)
+    contours = find_contours(shapes, img)
     zones, _, _, _ = init_zones(binary, 8)
     contours_by_zone = split_contours_in_zones(contours, zones)
     contours_by_zone.extend(split_contours_in_zones(contours, list(reversed(zones))))
@@ -179,7 +203,7 @@ def detect_staffs(img, debug=True):
 def crop_staff_lines(img, debug=True):
     binary = image_threshold(img)
     shapes = get_large_shapes(binary)
-    contours = find_contours(shapes)
+    contours = find_contours(shapes, img)
     if debug:
         contour_img = draw_contours(contours, img)
         cv2.imwrite("sheetmusic_crop.jpeg", binary)
