@@ -2,6 +2,7 @@ import numpy as np
 from cv2 import (
     ADAPTIVE_THRESH_MEAN_C,
     BORDER_REPLICATE,
+    BORDER_CONSTANT,
     COLOR_RGB2GRAY,
     INTER_AREA,
     INTER_CUBIC,
@@ -69,7 +70,8 @@ class RemappedImage:
                 image_y_coords,
                 INTER_CUBIC,
                 None,
-                BORDER_REPLICATE,
+                BORDER_CONSTANT,
+                (255, 255, 255)
             ))
         remapped = np.transpose(np.array(remapped), (1, 2, 0))
         thresh = remapped
