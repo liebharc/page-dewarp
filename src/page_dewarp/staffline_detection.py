@@ -211,7 +211,7 @@ def crop_staff_lines(img, debug=True):
     margin = 50
     left = max(min([c.left for c in contours]) - margin, 0)
     right = min(max([c.right for c in contours]) + margin, img.shape[1])
-    top = max(min([c.top for c in contours]) - margin, 0)
+    top = max(min([c.top for c in contours]) - 4 * margin, 0)
     bottom = min(max([c.bottom for c in contours]) + margin, img.shape[0])
     return img[top:bottom, left:right]
 
