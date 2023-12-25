@@ -179,7 +179,10 @@ def draw_contours(contours, img):
 class Rating:
     def __init__(self, contours: list[Contour], contours_by_zone: list[Contour]):
         self.staff_lines = len(contours)
-        self.angles = sum([c.angle for c in contours_by_zone]) / len(contours_by_zone)
+        if len(contours_by_zone) > 0:
+            self.angles = sum([c.angle for c in contours_by_zone]) / len(contours_by_zone)
+        else:
+            self.angles = 0
 
 
 def detect_staffs(img, debug=True):
